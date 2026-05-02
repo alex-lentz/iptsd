@@ -113,6 +113,16 @@ public:
 	}
 
 	/*!
+	 * Process a standalone HID button report.
+	 *
+	 * @param[in] data The raw HID report (first byte is the report ID).
+	 */
+	void process_button_report(const gsl::span<u8> data)
+	{
+		this->on_button_report(data);
+	}
+
+	/*!
 	 * For running application specific code after the runner has started.
 	 */
 	virtual void on_start() {};
@@ -146,6 +156,13 @@ protected:
 	 * For running application specific code that further processes button clicks.
 	 */
 	virtual void on_button(const ipts::samples::Button & /* unused */) {};
+
+	/*!
+	 * For handling a standalone HID button report (e.g. Sensel haptic touchpad).
+	 *
+	 * The default implementation is a no-op; override in device-specific applications.
+	 */
+	virtual void on_button_report(const gsl::span<u8> /* data */) {};
 
 private:
 	/*!

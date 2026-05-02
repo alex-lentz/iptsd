@@ -67,11 +67,15 @@ private:
 	// All reports of the HID descriptor that contain touch data
 	std::vector<hid::Report> m_touch_data_reports;
 
+	// The standalone button input report, if present (e.g. Sensel haptic touchpad)
+	std::optional<hid::Report> m_button_report;
+
 public:
 	Device(std::shared_ptr<hid::Device> hid)
 		: m_hid {std::move(hid)},
 		  m_descriptor {m_hid->descriptor()},
-		  m_touch_data_reports {m_descriptor.find_touch_data_reports()}
+		  m_touch_data_reports {m_descriptor.find_touch_data_reports()},
+		  m_button_report {m_descriptor.find_button_report()}
 	{
 		// Check if the device can switch modes
 		if (!m_descriptor.find_modesetting_report().has_value())
@@ -196,6 +200,20 @@ public:
 			m_touch_data_reports.cbegin(),
 			m_touch_data_reports.cend(),
 			[&](const hid::Report &report) { return report.report_id == buffer[0]; });
+	}
+
+	/*!
+	 * Checks whether a buffer contains a standalone button report.
+	 *
+	 * @param[in] buffer The buffer that was read from the device.
+	 * @return Whether the buffer contains button input data.
+	 */
+	[[nodiscard]] bool is_button_data(const gsl::span<u8> buffer) const
+	{
+		if (!m_button_report.has_value() || buffer.empty())
+			return false;
+
+		return m_button_report->report_id == buffer[0];
 	}
 };
 

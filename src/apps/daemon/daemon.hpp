@@ -76,6 +76,20 @@ public:
 		m_touch->update(button);
 	}
 
+	void on_button_report(const gsl::span<u8> data) override
+	{
+		if (!m_touch.has_value() || data.size() < 2)
+			return;
+
+		// Standard HID button bitmask: bit 0 = BTN_LEFT.
+		// Used by haptic touchpads (e.g. Sensel on Surface Laptop 7 Intel) that send
+		// button state in a separate report rather than inside the IPTS frame stream.
+		ipts::samples::Button button {};
+		button.active = (data[1] & 0x01) != 0;
+		button.pressure = button.active ? 1.0 : 0.0;
+		m_touch->update(button);
+	}
+
 	void on_stylus(const ipts::samples::Stylus &stylus) override
 	{
 		if (!m_stylus.has_value())

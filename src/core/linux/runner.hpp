@@ -143,11 +143,15 @@ public:
 				const usize size = m_device->read(m_buffer);
 				const gsl::span<u8> data {m_buffer.data(), size};
 
-				// Does this report contain touch data?
-				if (!m_ipts.is_touch_data(m_buffer))
+				if (m_ipts.is_touch_data(m_buffer)) {
+					m_application->process(data);
+				} else if (m_ipts.is_button_data(m_buffer)) {
+					m_application->process_button_report(data);
+				} else {
+					if (size > 0)
+						spdlog::debug("Unknown report: id=0x{:02x} size={}", m_buffer[0], size);
 					continue;
-
-				m_application->process(data);
+				}
 			} catch (const common::Error<device::Error::EndOfData> & /* unused */) {
 				break;
 			} catch (const std::exception &e) {

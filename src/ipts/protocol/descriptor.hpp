@@ -12,6 +12,7 @@ namespace iptsd::ipts::protocol::descriptor {
 // Needed because we have a hid namespace in iptsd::ipts::protocol
 namespace hid = iptsd::hid;
 
+constexpr u16 USAGE_PAGE_BUTTON = 0x0009;
 constexpr u16 USAGE_PAGE_DIGITIZER = 0x000D;
 constexpr u16 USAGE_PAGE_VENDOR = 0xFF00;
 
@@ -22,6 +23,8 @@ constexpr u8 USAGE_SCAN_TIME = 0x56;
 constexpr u8 USAGE_GESTURE_DATA = 0x61;
 constexpr u8 USAGE_SET_MODE = 0xC8;
 constexpr u8 USAGE_METADATA = 0x63;
+
+constexpr u16 USAGE_BUTTON_1 = 0x0001;
 
 /*!
  * Checks if a given report contains touch data.
@@ -34,6 +37,21 @@ inline bool is_touch_data(const hid::Report &report)
 	return report.type == hid::Report::Type::Input &&
 	       report.has_usage(USAGE_PAGE_DIGITIZER, USAGE_SCAN_TIME) &&
 	       report.has_usage(USAGE_PAGE_DIGITIZER, USAGE_GESTURE_DATA);
+}
+
+/*!
+ * Checks if a given report is a standalone HID button input report.
+ *
+ * This matches a simple button-bitmask Input report (e.g. on Sensel haptic touchpads)
+ * that is distinct from the main IPTS touch data report.
+ *
+ * @param[in] report The report to check.
+ * @return Whether the report matches the properties for a button input report.
+ */
+inline bool is_button_input(const hid::Report &report)
+{
+	return report.type == hid::Report::Type::Input && !is_touch_data(report) &&
+	       report.has_usage(USAGE_PAGE_BUTTON, USAGE_BUTTON_1);
 }
 
 /*!

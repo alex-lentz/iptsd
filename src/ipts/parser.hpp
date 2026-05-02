@@ -22,6 +22,7 @@
 #include <common/types.hpp>
 
 #include <gsl/gsl>
+#include <spdlog/spdlog.h>
 
 #include <functional>
 #include <optional>
@@ -126,7 +127,7 @@ private:
 			this->parse_report_frames(sub);
 			break;
 		default:
-			// TODO: Add handler for unknown data and wire up debug tools
+			spdlog::debug("Unknown HID frame type: 0x{:02x}", static_cast<u8>(frame.type));
 			break;
 		}
 	}
@@ -234,9 +235,21 @@ private:
 		case protocol::report::Type::Button:
 			this->parse_button(sub);
 			break;
-		default:
-			// TODO: Add handler for unknown data and wire up debug tools
+		default: {
+			const auto type_byte = static_cast<u8>(frame.type);
+			if (type_byte == 0x94) {
+				const auto bytes = sub.subspan<u8>(sub.size());
+				if (bytes.size() >= 3 && this->on_button) {
+					samples::Button button {};
+					button.active = (bytes[2] & 0x02) != 0;
+					button.pressure = button.active ? 1.0 : 0.0;
+					this->on_button(button);
+				}
+			} else {
+				spdlog::debug("Unknown report frame type: 0x{:02x} size={}", type_byte, frame.size);
+			}
 			break;
+		}
 		}
 	}
 

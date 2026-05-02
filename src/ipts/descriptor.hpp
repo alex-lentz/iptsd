@@ -46,6 +46,19 @@ public:
 	}
 
 	/*!
+	 * Searches for a standalone button input report in the HID descriptor.
+	 *
+	 * On haptic touchpads (e.g. Sensel) the physical button is reported separately
+	 * from the IPTS touch data, using a plain HID button bitmask.
+	 *
+	 * @return The button input report if one exists, null otherwise.
+	 */
+	[[nodiscard]] std::optional<hid::Report> find_button_report() const
+	{
+		return m_hid_descriptor.find_report(protocol::descriptor::is_button_input);
+	}
+
+	/*!
 	 * Searches for the metadata report in the HID descriptor.
 	 *
 	 * The metadata report is a feature report that returns data about the device, such as
