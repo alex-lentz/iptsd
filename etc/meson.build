@@ -40,6 +40,10 @@ if service_manager.contains('systemd')
 	if systemd.found()
 		unitdir = systemd.get_variable(pkgconfig: 'systemdsystemunitdir')
 
+		fs = import('fs')
+		sleepdir = systemd.get_variable(pkgconfig: 'systemdsleepdir',
+			default_value: fs.parent(unitdir) / 'system-sleep')
+
 		udev = dependency('udev')
 		udevdir = udev.get_variable(pkgconfig: 'udevdir')
 		rulesdir = join_paths(udevdir, 'rules.d')
@@ -49,6 +53,11 @@ if service_manager.contains('systemd')
 
 		install_data(unit, install_dir: unitdir)
 		install_data(rule, install_dir: rulesdir)
+		install_data(
+			'systemd-sleep/iptsd',
+			install_dir: sleepdir,
+			install_mode: 'rwxr-xr-x',
+		)
 
 		install_data(
 			'scripts/iptsd-systemd',
