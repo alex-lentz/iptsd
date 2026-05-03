@@ -1,10 +1,37 @@
 # IPTSD
 
+> **This is a personal fork of [linux-surface/iptsd](https://github.com/linux-surface/iptsd)**,
+> **vibe coded** (you have been warned) to get my MS Surface Laptop 7 Intel haptic trackpad to work. It tracks the upstream project and adds a small set of patches not yet
+> merged upstream. See [Changes from upstream](#changes-from-upstream) below.
+
 This is the userspace touch processing daemon for Microsoft Surface devices using Intel Precise
 Touch technology.
 
 The daemon will read incoming HID reports containing raw capacitive touch data, stylus coordinates
 and DFT pen measurements, and create standard input events from it using uinput devices.
+
+### Changes from upstream
+
+The following patches are applied on top of [v3.1.0](https://github.com/linux-surface/iptsd/releases/tag/v3.1.0):
+
+- **Fix physical click on Sensel haptic touchpad** (`ipts/parser`, `daemon`) — Parses IPTS report
+  frame type `0x94`, which carries touchpad button state on devices like the Surface Laptop 7
+  Intel. Bit 1 of byte 2 signals a physical button press; this is now routed through the existing
+  `on_button` path so `BTN_LEFT` is emitted correctly.
+
+- **Fix iptsd not recovering after sleep when hidraw device persists** (`etc`) — Adds a
+  `systemd-sleep` hook that re-fires udev `add` events for all hidraw devices on post-resume. On
+  some Surface devices the hidraw node is not removed during suspend, so no udev `ACTION=="add"`
+  event fires on wake and `iptsd@.service` is never restarted. The hook works around this by
+  running `udevadm trigger` after resume. Also adds `Restart=on-failure` to the service unit so
+  that a transient startup failure immediately after wake is retried automatically.
+
+### Credits
+
+IPTSD is developed and maintained by the [linux-surface](https://github.com/linux-surface) team,
+primarily [Maximilian Luz](https://github.com/quo) and [Dorian Stoll](https://github.com/StollD).
+All core functionality originates from the upstream project. The patches in this fork were authored
+by Alex Lentz with assistance from [Claude](https://claude.ai).
 
 ### Installing
 
