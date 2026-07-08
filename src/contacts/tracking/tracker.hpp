@@ -27,6 +27,11 @@ private:
 	// The distances between all contacts from the current and the last frame.
 	Image<T> m_distances {};
 
+	// Max normalized distance a contact may move between frames and still be
+	// tracked as the same contact. Farther = lift+reposition; contact keeps its
+	// fresh index and emits no stale delta. Suppresses scroll flyback.
+	T m_reposition_ceiling = static_cast<T>(0.15);
+
 public:
 	/*!
 	 * Resets the tracker by clearing the stored copy of the last frame.
@@ -63,7 +68,13 @@ public:
 				Eigen::Index y = 0;
 				Eigen::Index x = 0;
 
-				m_distances.minCoeff(&y, &x);
+				const T dist = m_distances.minCoeff(&y, &x);
+
+				// Lift+reposition guard: nearest match too far to be real motion → stop
+				// inheriting indices. minCoeff returns the smallest remaining distance, so
+				// once it exceeds the ceiling every other unmatched pair is too far as well.
+				if (dist > m_reposition_ceiling)
+					break;
 
 				// Copy the index of the contact
 				frame[casts::to_unsigned(x)].index =
