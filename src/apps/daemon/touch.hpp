@@ -68,6 +68,12 @@ private:
 	// Whether the device is enabled.
 	bool m_enabled = true;
 
+	// Whether all output is currently suppressed because a palm was registered.
+	// Tracked here (not just locally in update(contacts)) so that update(Button) can
+	// also respect it -- the raw button sample path is otherwise a separate channel
+	// that bypasses contact-based palm suppression entirely.
+	bool m_blocked = false;
+
 public:
 	TouchDevice(const core::Config &config, const core::DeviceInfo &info)
 		: m_config {config},
@@ -140,7 +146,9 @@ public:
 		// Find the inputs that need to be lifted
 		this->search_lifted(contacts);
 
-		if (this->is_blocked(contacts))
+		m_blocked = this->is_blocked(contacts);
+
+		if (m_blocked)
 			this->lift_all();
 		else
 			this->process(contacts);
@@ -155,8 +163,12 @@ public:
 	 */
 	void update(const ipts::samples::Button &button)
 	{
-		// If the touch device is disabled ignore all inputs.
-		if (!m_enabled)
+		// If the touch device is disabled, or all output is suppressed because of a
+		// palm, ignore the raw button sample too. Without this, a firm palm press that
+		// mechanically trips the click sensor would still register a click even though
+		// pointer motion is correctly frozen -- this is a separate channel from the
+		// contact-derived BTN_LEFT emitted/lifted in process()/lift_all().
+		if (!m_enabled || m_blocked)
 			return;
 
 		m_uinput->emit(EV_KEY, BTN_LEFT, button.active ? 1 : 0);
@@ -177,6 +189,7 @@ public:
 		m_current.clear();
 		m_last.clear();
 		m_lift.clear();
+		m_blocked = false;
 	}
 
 	/*!
