@@ -160,6 +160,7 @@ private:
 		this->get(ini, "Touchpad", "Disable", m_config.touchpad_disable);
 		this->get(ini, "Touchpad", "DisableOnPalm", m_config.touchpad_disable_on_palm);
 		this->get(ini, "Touchpad", "Overshoot", m_config.touchpad_overshoot);
+		this->get(ini, "Touchpad", "ButtonDebounceMs", m_config.touchpad_button_debounce_ms);
 
 		this->get(ini, "Contacts", "Neutral", m_config.contacts_neutral);
 		this->get(ini, "Contacts", "NeutralValue", m_config.contacts_neutral_value);

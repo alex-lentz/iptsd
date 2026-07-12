@@ -17,6 +17,7 @@
 #include <linux/input-event-codes.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <iterator>
 #include <memory>
@@ -68,6 +69,25 @@ private:
 	// Whether the device is enabled.
 	bool m_enabled = true;
 
+	// Minimum time between accepted button transitions, to filter out
+	// rapid press/release flicker from the firmware's raw pressure-threshold bit.
+	f64 m_button_debounce_ms = 0;
+
+	// The last debounced (emitted) state of the touchpad button.
+	bool m_button_state = false;
+
+	// When the last accepted button transition happened.
+	std::chrono::steady_clock::time_point m_button_last_change {};
+
+	// Whether m_button_last_change holds a real timestamp yet.
+	bool m_button_initialized = false;
+
+	// Whether all output is currently suppressed because a palm was registered.
+	// Tracked here (not just locally in update(contacts)) so that update(Button) can
+	// also respect it -- the raw button sample path is otherwise a separate channel
+	// that bypasses contact-based palm suppression entirely.
+	bool m_blocked = false;
+
 public:
 	TouchDevice(const core::Config &config, const core::DeviceInfo &info)
 		: m_config {config},
@@ -106,6 +126,8 @@ public:
 			m_disable_on_palm = config.touchscreen_disable_on_palm;
 		}
 
+		m_button_debounce_ms = config.touchpad_button_debounce_ms;
+
 		const f64 diag = std::hypot(config.width, config.height);
 
 		// Resolution for X / Y is expected to be units/mm.
@@ -140,7 +162,9 @@ public:
 		// Find the inputs that need to be lifted
 		this->search_lifted(contacts);
 
-		if (this->is_blocked(contacts))
+		m_blocked = this->is_blocked(contacts);
+
+		if (m_blocked)
 			this->lift_all();
 		else
 			this->process(contacts);
@@ -155,11 +179,36 @@ public:
 	 */
 	void update(const ipts::samples::Button &button)
 	{
-		// If the touch device is disabled ignore all inputs.
-		if (!m_enabled)
+		// If the touch device is disabled, or all output is suppressed because of a
+		// palm, ignore the raw button sample too. Without this, a firm palm press that
+		// mechanically trips the click sensor would still register a click even though
+		// pointer motion is correctly frozen -- this is a separate channel from the
+		// contact-derived BTN_LEFT emitted/lifted in process()/lift_all().
+		if (!m_enabled || m_blocked)
 			return;
 
-		m_uinput->emit(EV_KEY, BTN_LEFT, button.active ? 1 : 0);
+		// No state change requested, nothing to debounce or emit.
+		if (button.active == m_button_state)
+			return;
+
+		const auto now = std::chrono::steady_clock::now();
+
+		// Debounce: a state change requested too soon after the last accepted one
+		// is treated as contact bounce on the firmware's pressure-threshold bit
+		// rather than a deliberate press/release, and is dropped.
+		if (m_button_initialized) {
+			const auto elapsed =
+				std::chrono::duration<f64, std::milli>(now - m_button_last_change).count();
+
+			if (elapsed < m_button_debounce_ms)
+				return;
+		}
+
+		m_button_state = button.active;
+		m_button_last_change = now;
+		m_button_initialized = true;
+
+		m_uinput->emit(EV_KEY, BTN_LEFT, m_button_state ? 1 : 0);
 		this->sync();
 	}
 
@@ -177,6 +226,7 @@ public:
 		m_current.clear();
 		m_last.clear();
 		m_lift.clear();
+		m_blocked = false;
 	}
 
 	/*!

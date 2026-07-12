@@ -34,6 +34,7 @@ public:
 	bool touchpad_disable = false;
 	bool touchpad_disable_on_palm = false;
 	f64 touchpad_overshoot = 0.5;
+	f64 touchpad_button_debounce_ms = 25;
 
 	// [Contacts]
 	std::string contacts_neutral = "mode";
