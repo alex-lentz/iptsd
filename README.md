@@ -35,14 +35,20 @@ by Alex Lentz with assistance from [Claude](https://claude.ai).
 
 ### Installing
 
-IPTSD is included in the linux-surface repository. This is the recommended way of installing it.
+This fork's patches are **not** part of the linux-surface package repository, so installing IPTSD
+through the normal linux-surface packages will get you upstream IPTSD without the fixes described
+above.
+
+There's no prebuilt package for this fork, and its GitHub Actions workflow (inherited from
+upstream) depends on linux-surface's release/signing secrets, which this fork doesn't have — so
+CI here doesn't produce installable artifacts. The supported way to use this fork is to build it
+from source; see [Building](#building) below.
+
+If you don't need these patches, use
+[upstream linux-surface/iptsd](https://github.com/linux-surface/iptsd#installing) and its official
+packages instead.
 
 **Important:** Support on Debian based distributions only goes back to Debian 11 / Ubuntu 22.04.
-
-If you want to try out changes that are not yet released, GitHub Actions builds Arch Linux, Debian
-and Fedora packages for every commit. You'll need to be signed in to GitHub, then go to
-https://github.com/linux-surface/iptsd/actions, select the latest successful workflow and download
-the artifact named `<your distro>-latest`.
 
 ### Building
 
@@ -68,7 +74,7 @@ Most of the dependencies can be downloaded and included automatically by meson, 
 distribution not include them.
 
 ```bash
-$ git clone https://github.com/linux-surface/iptsd
+$ git clone https://github.com/alex-lentz/iptsd
 $ cd iptsd
 $ meson setup build
 $ ninja -C build
@@ -103,5 +109,5 @@ $ sudo restorecon -vF /usr/lib/systemd/system/iptsd@.service
 $ sudo restorecon -vF /usr/local/bin/ipts*
 ```
 
-This is only necessary when using `ninja install`. When you install one of the packages from
-GitHub Actions, or build your own package, everything will just work.
+This is only necessary when using `ninja install`. When you build your own package, everything
+will just work.
