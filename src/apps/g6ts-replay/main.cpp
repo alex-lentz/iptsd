@@ -45,11 +45,11 @@ public:
 
 	void on_stylus(const ipts::samples::Stylus &stylus) override
 	{
-		std::printf("{\"cycle\":%" PRIu64 ",\"t_ms\":%.3f,"
+		std::printf("{\"cycle\":%" PRIu64 ",\"t_ms\":%.3f,\"pe\":%u,"
 			    "\"x\":%.9f,\"y\":%.9f,\"proximity\":%s,"
 			    "\"contact\":%s,\"pressure\":%.6f,\"button\":%s,"
 			    "\"rubber\":%s}\n",
-			    cycle, cycle_ms, stylus.x, stylus.y,
+			    cycle, cycle_ms, pressure_energy, stylus.x, stylus.y,
 			    stylus.proximity ? "true" : "false",
 			    stylus.contact ? "true" : "false", stylus.pressure,
 			    stylus.button ? "true" : "false",
@@ -59,7 +59,9 @@ public:
 
 	u64 cycle = 0;
 	f64 cycle_ms = 0;
+	u32 pressure_energy = 0;
 	usize updates = 0;
+	g6ts::ContactDetector contact {};
 };
 
 u32 parse_u32(const std::string &text)
@@ -183,23 +185,39 @@ int run(const int argc, const char **argv)
 
 	u32 group_counter = 0;
 
+	usize cycles_with_pressure = 0;
+	u32 pressure_energy_max = 0;
+
 	bundler.on_cycle = [&](const g6ts::Cycle &cycle) {
 		replay_app.cycle++;
 		replay_app.cycle_ms =
 			static_cast<f64>(cycle.last_timestamp_ns) / 1000000.0;
 
-		const auto banks = g6ts::extract_banks(cycle);
-		if (!banks.has_value())
-			return;
+		const auto pb = g6ts::pressure_banks(cycle);
+		if (pb.has_value()) {
+			cycles_with_pressure++;
+			pressure_energy_max =
+				std::max(pressure_energy_max, pb->max_energy());
+		} else if (replay_app.cycle < 6) {
+			const g6ts::Part &second =
+				cycle.parts[static_cast<usize>(
+					g6ts::PartIndex::HeatSecond)];
+			spdlog::info("cycle {}: second 0x0B present={} len={}",
+				     replay_app.cycle, second.present,
+				     second.content_len);
+		}
 
-		const u32 timestamp_ms = static_cast<u32>(
-			std::min<u64>(cycle.last_timestamp_ns / 1000000,
-				      UINT32_MAX));
+		const auto pbank = g6ts::pressure_banks(cycle);
+		replay_app.pressure_energy =
+			pbank.has_value() ? pbank->max_energy() : 0;
 
-		std::vector<u8> frames = g6ts::serialize_dft(
-			*banks, timestamp_ms, group_counter++);
-		replay_app.ingest(frames);
+		auto frames = g6ts::serialize_cycle(cycle, group_counter++,
+						    replay_app.contact);
+		if (frames.has_value())
+			replay_app.ingest(*frames);
 	};
+
+	spdlog::set_level(spdlog::level::debug);
 
 	for (const std::string &path : paths)
 		if (replay(path, bundler) != EXIT_SUCCESS)

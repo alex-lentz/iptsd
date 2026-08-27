@@ -124,26 +124,21 @@ int run(const int argc, const char **argv)
 	G6tsDaemon daemon {config, info};
 
 	g6ts::Bundler bundler {};
+	g6ts::ContactDetector contact {};
 	u32 group_counter = 0;
 	u64 last_cycle_ns = 0;
 	bool stylus_active = false;
 	std::atomic_bool should_stop {false};
 
 	bundler.on_cycle = [&](const g6ts::Cycle &cycle) {
-		const auto banks = g6ts::extract_banks(cycle);
 		last_cycle_ns = cycle.last_timestamp_ns;
 
-		if (!banks.has_value())
-			return;
-
-		const u32 timestamp_ms = static_cast<u32>(
-			std::min<u64>(cycle.last_timestamp_ns / 1000000,
-				      UINT32_MAX));
-
-		std::vector<u8> frames = g6ts::serialize_dft(
-			*banks, timestamp_ms, group_counter++);
-		daemon.ingest(frames);
-		stylus_active = true;
+		auto frames = g6ts::serialize_cycle(cycle, group_counter++,
+						    contact);
+		if (frames.has_value()) {
+			daemon.ingest(*frames);
+			stylus_active = true;
+		}
 	};
 
 	const auto _sigterm =
@@ -193,11 +188,8 @@ int run(const int argc, const char **argv)
 
 			if (last_cycle_ns &&
 			    now_ns > last_cycle_ns + stale_ms * 1000000ull) {
-				g6ts::CycleBanks empty {};
-				std::vector<u8> frames = g6ts::serialize_dft(
-					empty,
-					static_cast<u32>(now_ns / 1000000),
-					group_counter++, true);
+				std::vector<u8> frames = g6ts::serialize_lift(
+					static_cast<u32>(now_ns / 1000000));
 				daemon.ingest(frames);
 				stylus_active = false;
 			}
