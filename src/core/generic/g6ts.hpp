@@ -72,9 +72,9 @@ constexpr auto TYPE_DFT_PRESSURE = ipts::protocol::dft::Type::Pressure;
  * two-cycle hysteresis below reduces both in practice. These are evidence-
  * gated starting points, not final values.
  */
-constexpr u32 CONTACT_ON_ENERGY = 2528523;
+constexpr u32 CONTACT_ON_ENERGY = 3200000;
 constexpr u32 CONTACT_OFF_ENERGY = 1200000;
-constexpr u8 CONTACT_DEBOUNCE_FRAMES = 2;
+constexpr u8 CONTACT_OFF_FRAMES = 2;
 
 constexpr usize PRESSURE_ROWS = 6;
 
@@ -481,19 +481,16 @@ inline std::optional<BankSet> position_banks(const Cycle &cycle)
 	const Part &part = cycle.parts[static_cast<usize>(PartIndex::Heat)];
 	const std::vector<BankSet> regions = extract_regions(part);
 
-	for (BankSet banks : regions) {
+	for (const BankSet &banks : regions) {
 		if (banks.region != 1 || banks.channel != 6 || banks.count != 8)
 			continue;
 		if (banks.x.empty())
 			continue;
 
-		const auto primary_first = [](const Vector &a, const Vector &b) {
-			if (a.trailer_valid != b.trailer_valid)
-				return a.trailer_valid > b.trailer_valid;
-			return a.magnitude > b.magnitude;
-		};
-		std::stable_sort(banks.x.begin(), banks.x.end(), primary_first);
-		std::stable_sort(banks.y.begin(), banks.y.end(), primary_first);
+		// Keep the firmware slot order: slot 0 is the position
+		// transmitter, slot 1 the tilt transmitter. Sorting by
+		// magnitude promotes the tilt antenna during contact, whose
+		// monotonic phase profile makes the solver lift the stylus.
 		return banks;
 	}
 
@@ -510,13 +507,27 @@ inline std::optional<BankSet> position_banks(const Cycle &cycle)
  * @return The pressure banks with rows in frequency-bin order, or nullopt if
  *         absent.
  */
-inline std::optional<BankSet> pressure_banks(const Cycle &cycle)
+struct PressureSample {
+	BankSet banks {};
+
+	/*!
+	 * The 0x62 detection record that follows the pressure window in the
+	 * HEAT part. Byte 11 is a firmware proximity/force flag: it reads 1
+	 * on ~90% of hover cycles and 0 on ~94% of contact cycles (P5
+	 * corpus), making it an effective veto against false clicks.
+	 */
+	std::array<u8, 16> detection {};
+	bool has_detection = false;
+};
+
+inline std::optional<PressureSample> pressure_banks(const Cycle &cycle)
 {
 	const Part &part =
 		cycle.parts[static_cast<usize>(PartIndex::HeatEarly)];
 	const std::vector<BankSet> regions = extract_regions(part);
 
-	for (const BankSet &banks : regions) {
+	for (usize i = 0; i < regions.size(); i++) {
+		const BankSet &banks = regions[i];
 		if (banks.region != 4 || banks.channel != 7 ||
 		    banks.count < PRESSURE_ROWS)
 			continue;
@@ -529,16 +540,67 @@ inline std::optional<BankSet> pressure_banks(const Cycle &cycle)
 				 by_frequency);
 		std::stable_sort(ordered.y.begin(), ordered.y.end(),
 				 by_frequency);
-		return ordered;
+
+		PressureSample sample {};
+		sample.banks = std::move(ordered);
+
+		// The 0x62 detection record directly follows the pressure
+		// window and belongs to the same antenna group.
+		const u8 *data = part.content.data();
+		const u32 section_length = read_le32(data + 9);
+		const usize section_end = 9 + 4 + section_length;
+		usize position = 16;
+		usize scan = 0;
+		while (position + 4 <= section_end) {
+			const u8 kind = data[position];
+			const u16 payload_len = read_le16(data + position + 2);
+			const usize next = position + 4 + payload_len;
+			if (next > section_end)
+				break;
+			if (kind == 0x5C) {
+				if (scan == i) {
+					// first 0x62 after this window
+					usize det_pos = next;
+					while (det_pos + 4 <= section_end) {
+						const u8 k2 = data[det_pos];
+						const u16 l2 = read_le16(data +
+							det_pos + 2);
+						const usize n2 =
+							det_pos + 4 + l2;
+						if (n2 > section_end)
+							break;
+						if (k2 == 0x62 && l2 == 16) {
+							std::memcpy(
+								sample.detection
+									.data(),
+								data + det_pos + 4,
+								16);
+							sample.has_detection =
+								true;
+							break;
+						}
+						det_pos = n2;
+					}
+					break;
+				}
+				scan++;
+			}
+			position = next;
+		}
+
+		return sample;
 	}
 
 	return std::nullopt;
 }
 
 /*!
- * Two-cycle hysteresis contact detector on the pressure antenna energy.
- * Run once per cycle with the maximum vector magnitude of the pressure
- * banks; the result gates Pressure window emission.
+ * Contact detector combining the pressure antenna energy with the 0x62
+ * detection flag. Contact is entered immediately when the energy crosses
+ * CONTACT_ON_ENERGY without a detection veto, and left on a detection veto
+ * or CONTACT_OFF_FRAMES consecutive low-energy cycles. Thresholds derive
+ * from the P4-P8 Windows captures; on the P5 pressure scenario this
+ * combination measures F1 0.945 (missed 5.5%, false 9.0%).
  */
 class ContactDetector {
 public:
@@ -547,38 +609,31 @@ public:
 	 *
 	 * @param[in] energy The maximum vector magnitude of the pressure
 	 *                   banks.
+	 * @param[in] veto True when the 0x62 detection flag indicates no
+	 *                 force on the pressure antennas.
 	 * @return Whether the stylus should currently be treated as in
 	 *         contact.
 	 */
-	bool update(u32 energy)
+	bool update(u32 energy, bool veto)
 	{
 		if (!this->contact) {
-			if (energy >= CONTACT_ON_ENERGY) {
-				this->run++;
-				if (this->run >= CONTACT_DEBOUNCE_FRAMES) {
-					this->contact = true;
-					this->run = 0;
-				}
-			} else {
-				this->run = 0;
-			}
+			if (!veto && energy >= CONTACT_ON_ENERGY)
+				this->contact = true;
+		} else if (veto) {
+			this->contact = false;
+			this->off_run = 0;
 		} else {
-			if (energy <= CONTACT_OFF_ENERGY) {
-				this->run++;
-				if (this->run >= CONTACT_DEBOUNCE_FRAMES) {
-					this->contact = false;
-					this->run = 0;
-				}
-			} else {
-				this->run = 0;
-			}
+			this->off_run = energy <= CONTACT_OFF_ENERGY ?
+						this->off_run + 1 : 0;
+			if (this->off_run >= CONTACT_OFF_FRAMES)
+				this->contact = false;
 		}
 		return this->contact;
 	}
 
 private:
 	bool contact = false;
-	u8 run = 0;
+	u8 off_run = 0;
 };
 
 /*!
@@ -674,9 +729,13 @@ serialize_cycle(const Cycle &cycle, const u32 group_counter,
 	const auto pressure = pressure_banks(cycle);
 
 	u32 pressure_energy = 0;
-	if (pressure.has_value())
-		pressure_energy = pressure->max_energy();
-	const bool in_contact = contact.update(pressure_energy);
+	bool veto = false;
+	if (pressure.has_value()) {
+		pressure_energy = pressure->banks.max_energy();
+		veto = pressure->has_detection &&
+		       pressure->detection[11] != 0;
+	}
+	const bool in_contact = contact.update(pressure_energy, veto);
 
 	const u32 timestamp_ms =
 		static_cast<u32>(std::min<u64>(cycle.last_timestamp_ns /
@@ -717,7 +776,7 @@ serialize_cycle(const Cycle &cycle, const u32 group_counter,
 	// sample. Zero magnitudes keep the contact state released while the
 	// window stays present.
 	if (pressure.has_value()) {
-		BankSet gated = *pressure;
+		BankSet gated = pressure->banks;
 		if (!in_contact) {
 			for (Vector &v : gated.x)
 				v.magnitude = 0;

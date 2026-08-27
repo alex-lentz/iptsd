@@ -99,6 +99,10 @@ int run(const int argc, const char **argv)
 	core::Config config {};
 	config.width = 27.39;
 	config.height = 18.26;
+	// G6 HEAT DFT component amplitudes are far smaller than the Intel
+	// IPTS rows this default was tuned for; a 50-floor caused spurious
+	// stylus lifts on valid cycles.
+	config.dft_position_min_amp = 0;
 	config.touchscreen_disable = true; // stylus only: HEAT carries pen data
 
 	core::DeviceInfo info {};

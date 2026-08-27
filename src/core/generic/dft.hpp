@@ -185,6 +185,7 @@ private:
 
 		m_stylus.x = std::clamp(x, 0.0, 1.0);
 		m_stylus.y = std::clamp(y, 0.0, 1.0);
+
 	}
 
 	/*!
@@ -237,6 +238,8 @@ private:
 
 		const f64 p =
 			1 - this->interpolate_frequency(dft, ipts::protocol::dft::PRESSURE_ROWS);
+
+		spdlog::info("handle_pressure: p={} contact_was={}", p, this->m_stylus.contact);
 
 		if (p > 0) {
 			m_stylus.contact = true;
@@ -346,9 +349,14 @@ private:
 			(sin * row.real.at(maxi + 1)) + (cos * row.imag.at(maxi + 1)),
 		};
 
-		// convert the amplitudes into something we can fit a parabola to
+		// convert the amplitudes into something we can fit a parabola to.
+		// Phase alignment on noisy antennas can produce slightly
+		// negative projections; amplitudes are non-negative by
+		// definition, so clamp before the power or pow() yields NaN
+		// and every such cycle would be misread as a stylus lift.
 		for (u8 i = 0; i < 3; i++)
-			x.at(i) = std::pow(x.at(i), m_config.dft_position_exp);
+			x.at(i) = std::pow(std::max<f64>(x.at(i), 0.0),
+					   m_config.dft_position_exp);
 
 		// check orientation of fitted parabola
 		if (x[0] + x[2] <= 2 * x[1])

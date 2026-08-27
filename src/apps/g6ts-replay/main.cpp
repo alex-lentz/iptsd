@@ -11,6 +11,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cinttypes>
+#include <fstream>
 #include <cstdlib>
 #include <exception>
 #include <fstream>
@@ -46,10 +47,11 @@ public:
 	void on_stylus(const ipts::samples::Stylus &stylus) override
 	{
 		std::printf("{\"cycle\":%" PRIu64 ",\"t_ms\":%.3f,\"pe\":%u,"
+			    "\"det11\":%d,"
 			    "\"x\":%.9f,\"y\":%.9f,\"proximity\":%s,"
 			    "\"contact\":%s,\"pressure\":%.6f,\"button\":%s,"
 			    "\"rubber\":%s}\n",
-			    cycle, cycle_ms, pressure_energy, stylus.x, stylus.y,
+			    cycle, cycle_ms, pressure_energy, det11, stylus.x, stylus.y,
 			    stylus.proximity ? "true" : "false",
 			    stylus.contact ? "true" : "false", stylus.pressure,
 			    stylus.button ? "true" : "false",
@@ -60,6 +62,7 @@ public:
 	u64 cycle = 0;
 	f64 cycle_ms = 0;
 	u32 pressure_energy = 0;
+	int det11 = -1;
 	usize updates = 0;
 	g6ts::ContactDetector contact {};
 };
@@ -169,6 +172,10 @@ int run(const int argc, const char **argv)
 	core::Config config {};
 	config.width = 27.39;
 	config.height = 18.26;
+	// G6 HEAT DFT component amplitudes are far smaller than the Intel
+	// IPTS rows this default was tuned for; a 50-floor caused spurious
+	// stylus lifts on valid cycles.
+	config.dft_position_min_amp = 0;
 
 	core::DeviceInfo info {};
 	info.vendor = 0x045E;
@@ -197,7 +204,7 @@ int run(const int argc, const char **argv)
 		if (pb.has_value()) {
 			cycles_with_pressure++;
 			pressure_energy_max =
-				std::max(pressure_energy_max, pb->max_energy());
+				std::max(pressure_energy_max, pb->banks.max_energy());
 		} else if (replay_app.cycle < 6) {
 			const g6ts::Part &second =
 				cycle.parts[static_cast<usize>(
@@ -209,7 +216,10 @@ int run(const int argc, const char **argv)
 
 		const auto pbank = g6ts::pressure_banks(cycle);
 		replay_app.pressure_energy =
-			pbank.has_value() ? pbank->max_energy() : 0;
+			pbank.has_value() ? pbank->banks.max_energy() : 0;
+		replay_app.det11 =
+			pbank.has_value() && pbank->has_detection ?
+				pbank->detection[11] : -1;
 
 		auto frames = g6ts::serialize_cycle(cycle, group_counter++,
 						    replay_app.contact);
