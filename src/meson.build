@@ -120,6 +120,24 @@ executable(
 )
 
 executable(
+	'iptsd-g6tsd',
+	'apps/g6tsd/main.cpp',
+	install: true,
+	cpp_args: optflags,
+	dependencies: default_deps,
+	include_directories: includes,
+)
+
+executable(
+	'iptsd-g6ts-replay',
+	'apps/g6ts-replay/main.cpp',
+	install: true,
+	cpp_args: optflags,
+	dependencies: default_deps,
+	include_directories: includes,
+)
+
+executable(
 	'iptsd-check-device',
 	'apps/check-device/main.cpp',
 	install: true,
