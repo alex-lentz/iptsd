@@ -1,0 +1,33 @@
+[Unit]
+Description=Surface G6 HEAT stylus bridge (IPTS DFT pipeline)
+Documentation=https://github.com/kyjus25/iptsd/tree/sp11-g6ts-bridge
+Conflicts=g6-pen.service
+After=systemd-udevd.service
+
+[Service]
+Type=simple
+ExecStart=@bindir@/iptsd-g6tsd --device /dev/g6ts-heat
+Restart=on-failure
+RestartSec=2s
+StartLimitIntervalSec=0
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+DevicePolicy=closed
+DeviceAllow=/dev/g6ts-heat r
+DeviceAllow=/dev/uinput rw
+
+[Install]
+WantedBy=multi-user.target
