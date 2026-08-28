@@ -1,7 +1,5 @@
 [Unit]
-Description=Surface G6 HEAT stylus bridge (IPTS DFT pipeline)
-Documentation=https://github.com/kyjus25/iptsd/tree/sp11-g6ts-bridge
-Conflicts=g6-pen.service
+Description=Surface Pro 11 G6 pen service (IPTS DFT stylus bridge)
 After=systemd-udevd.service
 
 [Service]
