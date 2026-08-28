@@ -708,7 +708,7 @@ inline void append_window(std::vector<u8> &out,
  * Serializes one cycle into the IPTS HID report framing expected by
  * ipts::Parser: a 3-byte report header, one HID frame of type Reports
  * containing a DftMetadata report, a DftWindow position report with the two
- * position banks and — when the pressure banks are present — a DftWindow
+ * position banks and, when the pressure banks are present, a DftWindow
  * pressure report whose magnitudes are gated by the contact detector.
  *
  * @param[in] cycle The complete cycle.
