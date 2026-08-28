@@ -64,8 +64,8 @@ constexpr auto TYPE_DFT_POSITION = ipts::protocol::dft::Type::Position;
 constexpr auto TYPE_DFT_PRESSURE = ipts::protocol::dft::Type::Pressure;
 
 /*
- * Contact detector thresholds, derived from the P4-P8 Windows captures
- * (ooaklee/sp11-windows-capture, heat-5c-features-P4-P8.csv): the region-4
+ * Contact detector thresholds, derived from the P4-P8 Windows capture
+ * corpus (heat-5c-features-P4-P8.csv): the region-4
  * pressure antennas of the second 0x0B record carry a median 5.8M maximum
  * energy during contact versus 0.22M during hover. Frame-level error rates at
  * the midpoint threshold are ~2% false / ~12% missed before debouncing; the

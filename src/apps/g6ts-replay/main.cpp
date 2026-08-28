@@ -27,7 +27,8 @@ namespace {
  * bridge. Every complete HEAT cycle is serialized into one DftWindow; every
  * stylus update is written to stdout as one JSON line, keyed by cycle index.
  * The output can be scored against the Windows processor reports of the same
- * capture (processor-pen-reports-P4-P8.csv in ooaklee/sp11-windows-capture).
+ * capture (processor-pen-reports-P4-P8.csv from the SP11 Windows capture
+ * evidence corpus).
  */
 class ReplayApp : public core::Application {
 public:

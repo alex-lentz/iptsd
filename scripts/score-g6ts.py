@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """
 Scores iptsd-g6ts-replay JSON output against the Windows processor pen reports
-of the same capture phase (processor-pen-reports-P4-P8.csv from
-ooaklee/sp11-windows-capture).
+of the same capture phase (processor-pen-reports-P4-P8.csv from the
+SP11 Windows capture evidence corpus).
 
 The two time bases differ by a constant per-phase offset (the corpus starts at
 the first HEAT record while the Windows trace starts earlier), so the scorer
