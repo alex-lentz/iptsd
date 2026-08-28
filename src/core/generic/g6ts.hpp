@@ -468,10 +468,9 @@ inline std::vector<BankSet> extract_regions(const Part &part)
 
 /*!
  * The position banks of a cycle: the first 0x5C record of the 0x0C part
- * (region 1, channel 6, 8 vectors per bank), with rows ordered
- * primary-first — valid-trailer vectors before invalid ones, then by
- * descending magnitude — so index 0 is the position transmitter and index 1
- * the tilt transmitter expected by DftStylus.
+ * (region 1, channel 6, 8 vectors per bank), kept in the firmware slot
+ * order: slot 0 is the position transmitter and slot 1 the tilt
+ * transmitter, as expected by DftStylus.
  *
  * @param[in] cycle The complete cycle.
  * @return The position banks, or nullopt if absent or malformed.
