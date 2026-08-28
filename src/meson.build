@@ -119,23 +119,26 @@ executable(
 	include_directories: includes,
 )
 
-executable(
-	'iptsd-g6tsd',
-	'apps/g6tsd/main.cpp',
-	install: true,
-	cpp_args: optflags,
-	dependencies: default_deps,
-	include_directories: includes,
-)
+g6ts_bridge = get_option('g6ts_bridge')
+if g6ts_bridge.enabled()
+	executable(
+		'iptsd-g6tsd',
+		'apps/g6tsd/main.cpp',
+		install: true,
+		cpp_args: optflags,
+		dependencies: default_deps,
+		include_directories: includes,
+	)
 
-executable(
-	'iptsd-g6ts-replay',
-	'apps/g6ts-replay/main.cpp',
-	install: true,
-	cpp_args: optflags,
-	dependencies: default_deps,
-	include_directories: includes,
-)
+	executable(
+		'iptsd-g6ts-replay',
+		'apps/g6ts-replay/main.cpp',
+		install: true,
+		cpp_args: optflags,
+		dependencies: default_deps,
+		include_directories: includes,
+	)
+endif
 
 executable(
 	'iptsd-check-device',

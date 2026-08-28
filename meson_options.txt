@@ -29,3 +29,10 @@ option(
 	type: 'boolean',
 	value: false,
 )
+
+option(
+	'g6ts_bridge',
+	type: 'feature',
+	value: 'disabled',
+	description: 'Surface Pro 11 G6 HEAT transport bridge and tools',
+)
